@@ -1,6 +1,3 @@
-#include "AutoLight.cginc"
-#pragma multi_compile_fwdbase
-#include "UnityCG.cginc"
 struct v2f
 {
     float4 pos : SV_POSITION;
@@ -153,6 +150,7 @@ float3 shading_frag(float3 base, float light_atten, float3 N, float3 V, float3 L
     #else
         float atten = min(light_atten, NL);
     #endif
+
     atten = max(atten, rim);
     float shadowBrightness = 0.78 + 0.22 * _ShadowBrightness;
     float3 shadowedColor = tilebaseS * shadowBrightness * _ShadowColor;
@@ -189,7 +187,6 @@ float4 frag_base (v2f i) : SV_Target
     #else
         float light_atten = LIGHT_ATTENUATION(i);
     #endif
-
     float3 shadedColor = shading_frag(base.rgb, light_atten, N, V, L, i.uv, i.world_pos);
     float glow = tex2D(_GlowTex, TRANSFORM_TEX(i.uv, _GlowTex)).r;
     return float4(shadedColor, glow * _Glow);

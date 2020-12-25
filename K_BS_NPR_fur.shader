@@ -27,6 +27,11 @@
 		Blend Off
 		SubShader
 		{
+			CGINCLUDE
+			#include "AutoLight.cginc"
+			#pragma multi_compile_fwdbase
+			#include "UnityCG.cginc"
+			ENDCG
 			Tags { "LightMode" = "ForwardBase" }
 			Pass
 			{
