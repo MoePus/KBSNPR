@@ -93,25 +93,31 @@ float square(float f)
     return f * f;
 }
 
-void GetLightAmbient(float3 world_pos, float3 N, out float3 L, out float3 lightColor, out float3 ambient, out float3 pixelAmbient)
+void GetLightAmbient(float3 N, out float3 L, out float3 lightColor, out float3 ambient)
 {
     float anyLXYZ = any(_WorldSpaceLightPos0.xyz);
     L = normalize(lerp(GetDefaultLightDirection(), _WorldSpaceLightPos0.xyz, anyLXYZ));
     lightColor = lerp(GetDefaultLightColor(), _LightColor0.rgb, anyLXYZ);
     ambient = shadeLightProb(N);
+}
 
-    pixelAmbient = 0;
-    // [unroll]
-    // for(int i = 0; i < 4; i++)
-    // {
-    //     float4 color = clamp(unity_LightColor[i], 0 , 1);
-    //     float3 wPos = float3(unity_4LightPosX0[i], unity_4LightPosY0[i], unity_4LightPosZ0[i]);
-    //     float3 tolight = wPos - world_pos;
-    //     float dis = max(1e-4f, dot(tolight, tolight));
-    //     float att = 1.0 / (1.0 + dis * clamp(unity_4LightAtten0[i], 0, 1));
-    //     pixelAmbient += pow(color.rgb * pow(att , max(0.8f / att , 1.0f)) * saturate(color.w), 0.454545);
-    // }
-    // pixelAmbient = clamp(pow(pixelAmbient, 2.2), 0, 1);
+float3 GetPixelAmbient(float3 world_pos)
+{
+    float3 pixelAmbient = 0;
+    [unroll]
+    for(int i = 0; i < 4; i++)
+    {
+        float4 color = unity_LightColor[i];
+        float3 wPos = float3(unity_4LightPosX0[i], unity_4LightPosY0[i], unity_4LightPosZ0[i]);
+        float3 tolight = wPos - world_pos;
+
+        float range = (0.005 * sqrt(1000000 - unity_4LightAtten0[i])) / sqrt(unity_4LightAtten0[i]);
+        float dis = max(1e-4f, length(tolight));
+        float att = 1 - clamp(dis / range , 0, 1);
+        pixelAmbient += pow(color.rgb * att * clamp(color.w, 0, 10), 0.454545);
+    }
+    pixelAmbient = clamp(pow(pixelAmbient, 2.2), 0, 1);
+    return pixelAmbient;
 }
 
 float3 transformHS(float3 from, float3 to, float factor, float toSEnch = 2.0)
@@ -176,6 +182,15 @@ float3 shading_frag(float3 base, float3 light_color, float light_atten, float3 a
     float biasedHL = (HL*saturate(_SystemShadowsLevel_var) ) - _ShadowOffset;
 
     float NV = saturate(dot(N,V));
+    float4 sky_data = UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0, reflect(-V, N), 8 * _SpecularSmooth);   
+    float3 sky_color = DecodeHDR (sky_data, unity_SpecCube0_HDR);
+    float sky_lum = dot(RGB2LUM, sky_color);
+    float specularMask = tex2D(_SpecularMaskTex, TRANSFORM_TEX(uv, _SpecularMaskTex)).r;
+    base = lerp(
+        base * lerp(1, 0.82, specularMask * _Metallic),
+        base * min(1.1, sky_lum * 1.2 + 0.7),
+        specularMask * _Metallic * lerp(1, 0.2, pow(NV,5)));
+
     _Rim = pow(_Rim, 4);
     #ifdef FURSTEP
         float rim = saturate((pow(1-NV,lerp(1,10,_RimSharpness)) - lerp(1,0.0,_Rim)) * lerp(5,20,_RimSharpness));
@@ -258,11 +273,10 @@ float3 shading_frag(float3 base, float3 light_color, float light_atten, float3 a
         shadedColor = shadedColor * lerp(1, _SSS_Color, SSS_factor * _SSS_Strength * 3);
     #endif
 
-    float specularMask = tex2D(_SpecularMaskTex, TRANSFORM_TEX(uv, _SpecularMaskTex)).r;
     float specular = (
         blinnphong(L,N,V, _SpecularSmooth)
     )
-    * _SpecularStrength;
+    * _SpecularStrength * sky_lum;
 
     float3 pixelAmbientHSV = RGBtoHSV(pixelAmbient);
     pixelAmbientHSV = max(1e-5, pixelAmbientHSV);
@@ -270,7 +284,7 @@ float3 shading_frag(float3 base, float3 light_color, float light_atten, float3 a
     float3 shiftedShadedColor = shadedColor *  
         lerp(1,
             brightPixelAmbient,
-            pow(dot(pixelAmbient,RGB2LUM) * 0.5, 0.1)
+            pow(dot(pixelAmbient,RGB2LUM) * 0.7, 0.5)
         );
     shadedColor = light_color * specular * specularMask * atten + shiftedShadedColor;
 

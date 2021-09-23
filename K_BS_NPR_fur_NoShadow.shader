@@ -1,4 +1,4 @@
-﻿Shader "KBSToon/Fur_Cutout"
+﻿Shader "KBSToon/Fur_Cutout_NoShadow"
 {
 	Properties
 	{
@@ -37,6 +37,7 @@
 		Blend SrcAlpha OneMinusSrcAlpha, Zero One
 		CGINCLUDE
 		#define FUR_BIAS 0.1
+		#define No_Fur_Shadow
 		ENDCG
 		Pass
 		{

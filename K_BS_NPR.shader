@@ -8,6 +8,7 @@
 		_SpecularMaskTex ("SpecularMaskTex", 2D) = "black" {}
 		_SpecularSmooth ("SpecularSmooth", Range (0, 1)) = 0
 		_SpecularStrength ("SpecularStrength", Range (0, 2)) = 1
+		_Metallic ("Metallic", Range (0, 1)) = 0
 		_Rim ("Rim", Range (0, 1)) = 0
 		_RimSharpness ("RimSharpness", Range (0, 1)) = 0
 		_Saturate ("Saturate", Range (-1, 1)) = 0
@@ -15,6 +16,7 @@
 		_ShadowSharpness ("ShadowSharpness", Range (0, 1)) = 0
 		_ShadowOffset ("ShadowOffset", Range (0, 1)) = 0.5
 		_ShadowColor ("ShdowColor", Color) = (1,1,1,1)
+		_NearOcclusion ("NearOcclusion", Range (0, 1)) = 0.6
 		_NormalMap ("NormalMap", 2D) = "bump" {}
 		_BumpScale ("Normal Scale", Range(0, 2)) = 1
 		[Toggle(__IsShadingFace)] __IsShadingFace("ShadingFace", Float)=0
@@ -40,14 +42,20 @@
 
 	SubShader
 	{
+		LOD 0
+		Tags {
+			"IgnoreProjector" = "True"
+			"RenderType"      = "Opaque"
+			"Queue"           = "Geometry"
+		}
 		Pass
 		{
 			Name "FORWARD"
-			Tags { "LightMode" = "ForwardBase" "Queue" = "Geometry" "RenderType" = "Opaque" }
+			Tags { "LightMode" = "ForwardBase" }
 			Cull Off
 			CGPROGRAM
-			#include "AutoLight.cginc"
 			#pragma multi_compile_fwdbase
+			#include "AutoLight.cginc"
 			#include "UnityCG.cginc"
 			#include "UnityLightingCommon.cginc"
 			#include "UnityStandardUtils.cginc"
@@ -61,8 +69,25 @@
 		}
 		Pass
 		{
+			Name "FORWARD"
+			Tags { "LightMode" = "ForwardAdd"}
+			Cull Off
+			Blend One One
+			CGPROGRAM
+			#pragma multi_compile_fwdadd
+			#include "AutoLight.cginc"
+			#include "UnityCG.cginc"
+			#include "UnityLightingCommon.cginc"
+			#include "UnityStandardUtils.cginc"
+			#pragma vertex vert_base
+			#pragma fragment frag_base
+			#include "fa.cginc"
+			ENDCG
+		}
+		Pass
+		{
 			Name "ShadowCaster"
-			Tags { "LightMode"="ShadowCaster" "Queue" = "Geometry" "RenderType" = "Opaque" }
+			Tags { "LightMode"="ShadowCaster"}
 			Offset 1, 1
 			Cull Off
 			ZWrite On

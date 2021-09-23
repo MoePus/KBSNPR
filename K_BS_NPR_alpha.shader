@@ -12,6 +12,7 @@
 		_ShadowSharpness ("ShadowSharpness", Range (0, 1)) = 0
 		_ShadowOffset ("ShadowOffset", Range (0, 1)) = 0.5
 		_ShadowColor ("ShdowColor", Color) = (1,1,1,1)
+		_NearOcclusion ("NearOcclusion", Range (0, 1)) = 0.6
 		_NormalMap ("NormalMap", 2D) = "bump" {}
         _BumpScale ("Normal Scale", Range(0, 2)) = 1
 		[Toggle(__IsShadingFace)] __IsShadingFace("ShadingFace", Float)=0
@@ -27,16 +28,19 @@
 		_Luminance ("Luminance", Range (0, 2)) = 1
 	}
 	Category {
-		Fog { Mode Off }
-		Tags { "Queue"="Transparent" "RenderType"="Transparent"}
-		LOD 100
+		LOD 0
+		Tags {
+			"IgnoreProjector" = "True"
+			"RenderType"      = "Transparent"
+			"Queue"           = "Transparent"
+		}
 		Cull Off
 		Blend SrcAlpha OneMinusSrcAlpha
 		SubShader
 		{
 			CGINCLUDE
-			#include "AutoLight.cginc"
 			#pragma multi_compile_fwdbase
+			#include "AutoLight.cginc"
 			#include "UnityCG.cginc"
 			#include "UnityLightingCommon.cginc"
 			#include "UnityStandardUtils.cginc"
@@ -52,8 +56,24 @@
 				#include "shader.cginc"
 				ENDCG
 			}
+			Pass
+			{
+				Name "FORWARD"
+				Tags { "LightMode" = "ForwardAdd"}
+				Cull Off
+				Blend SrcAlpha One
+				CGPROGRAM
+				#pragma multi_compile_fwdadd
+				#include "AutoLight.cginc"
+				#include "UnityCG.cginc"
+				#include "UnityLightingCommon.cginc"
+				#include "UnityStandardUtils.cginc"
+				#pragma vertex vert_base
+				#pragma fragment frag_base
+				#include "fa.cginc"
+				ENDCG
+			}
 		}
 	}
-
 	Fallback Off
 }

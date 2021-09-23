@@ -16,6 +16,7 @@
 		_ShadowSharpness ("ShadowSharpness", Range (0, 1)) = 0
 		_ShadowOffset ("ShadowOffset", Range (0, 1)) = 0.5
 		_ShadowColor ("ShdowColor", Color) = (1,1,1,1)
+		_NearOcclusion ("NearOcclusion", Range (0, 1)) = 0.6
 		_NormalMap ("NormalMap", 2D) = "bump" {}
 		_BumpScale ("Normal Scale", Range(0, 2)) = 1
 		[Toggle(__IsShadingFace)] __IsShadingFace("ShadingFace", Float)=0
@@ -41,10 +42,16 @@
 
 	SubShader
 	{
+		LOD 0
+		Tags {
+			"IgnoreProjector" = "True"
+			"RenderType"      = "Transparent"
+			"Queue"           = "Transparent"
+		}
 		Pass
 		{
 			Name "FORWARD"
-			Tags { "LightMode" = "ForwardBase" "Queue" = "Geometry" "RenderType" = "Opaque" }
+			Tags { "LightMode" = "ForwardBase"}
 			Cull Off
 			CGPROGRAM
 			#define DBSide 1
@@ -63,8 +70,25 @@
 		}
 		Pass
 		{
+			Name "FORWARD"
+			Tags { "LightMode" = "ForwardAdd"}
+			Cull Off
+			Blend One One
+			CGPROGRAM
+			#pragma multi_compile_fwdadd
+			#include "AutoLight.cginc"
+			#include "UnityCG.cginc"
+			#include "UnityLightingCommon.cginc"
+			#include "UnityStandardUtils.cginc"
+			#pragma vertex vert_base
+			#pragma fragment frag_base
+			#include "fa.cginc"
+			ENDCG
+		}
+		Pass
+		{
 			Name "ShadowCaster"
-			Tags { "LightMode"="ShadowCaster" "Queue" = "Geometry" "RenderType" = "Opaque" }
+			Tags { "LightMode"="ShadowCaster"}
 			Offset 1, 1
 			Cull Off
 			ZWrite On

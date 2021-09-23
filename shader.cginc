@@ -6,8 +6,9 @@ struct v2f
     float4 world_pos : TEXCOORD2;
     float3 tangent: TEXCOORD3;
     float3 binormal: TEXCOORD4;
-    UNITY_FOG_COORDS(5)
-    SHADOW_COORDS(6)
+    float3 pixel_ambient: TEXCOORD5;
+    UNITY_FOG_COORDS(6)
+    SHADOW_COORDS(7)
 };
 struct appdata_k {
     float4 vertex : POSITION;
@@ -21,12 +22,14 @@ struct appdata_k {
 float _Glow;
 float _SpecularSmooth;
 float _SpecularStrength;
+float _Metallic;
 float _Rim;
 float _RimSharpness;
 float _Saturate;
 float _ShadowBrightness;
 float _ShadowSharpness;
 float4 _ShadowColor;
+float _NearOcclusion;
 float _ShadowOffset;
 float _BumpScale;
 float _LightMapSharpness;
@@ -97,6 +100,7 @@ v2f vert_base (appdata_k v)
     o.binormal = normalize(cross(o.world_normal, o.tangent) * v.tangent.w);
     TRANSFER_SHADOW(o);
     UNITY_TRANSFER_FOG(o,o.pos);
+    o.pixel_ambient = 0;GetPixelAmbient(o.world_pos);
     return o;
 }
 
@@ -120,7 +124,8 @@ float4 frag_base (v2f i, fixed facing : VFACE) : SV_Target
     float3 N = normalize(mul( normalMap, tangentTransform ));
     float3 V = normalize(_WorldSpaceCameraPos - i.world_pos.xyz);
     float3 L, lightColor, ambient, pixelAmbient;
-    GetLightAmbient(i.world_pos.xyz, N, L, lightColor, ambient, pixelAmbient);
+    GetLightAmbient(N, L, lightColor, ambient);
+    pixelAmbient = i.pixel_ambient;
 
     #ifdef NO_CASTED_SHADOW
         float light_atten = 1;
@@ -129,13 +134,15 @@ float4 frag_base (v2f i, fixed facing : VFACE) : SV_Target
     #else
         UNITY_LIGHT_ATTENUATION(light_atten, i, i.world_pos.xyz);
     #endif
-    
     light_atten = lerp(1, light_atten, any(_WorldSpaceLightPos0.xyz));
-    float3 shadedColor = shading_frag(base.rgb, lightColor, light_atten, ambient, pixelAmbient, N, V, L, i.uv, i.world_pos);
+    float lumadj = max(0, _Luminance - 1) * 0.15;
+    float3 shadedColor = shading_frag(base.rgb, lightColor, light_atten, (ambient + lumadj) * _Luminance, pixelAmbient, N, V, L, i.uv, i.world_pos);
+    //near occlusion
+    shadedColor *= lerp(_NearOcclusion, 1, saturate(i.pos.w * 6 - 0.2));
     float3 glow = tex2D(_GlowTex, TRANSFORM_TEX(i.uv, _GlowTex));
     shadedColor = lerp(shadedColor, base.rgb, glow * _Glow);
     UNITY_APPLY_FOG(i.fogCoord, shadedColor);
-    return float4(saturate(shadedColor * _Luminance), base.a);
+    return float4(saturate(shadedColor), base.a);
 }
 
 #ifdef FURSTEP
@@ -170,7 +177,9 @@ float4 frag_base (v2f i, fixed facing : VFACE) : SV_Target
         wnormal = normalize(lerp(wnormal, lightDirection, anyLXYZ * 0.25));
         o.world_normal = wnormal;
         o.world_pos = mul(unity_ObjectToWorld, P);
+        TRANSFER_SHADOW(o);
         UNITY_TRANSFER_FOG(o,o.pos);
+        o.pixel_ambient = GetPixelAmbient(o.world_pos);
         return o;
     }
 
@@ -186,14 +195,22 @@ float4 frag_base (v2f i, fixed facing : VFACE) : SV_Target
         float3 N = normalize(i.world_normal);
         float3 V = normalize(_WorldSpaceCameraPos - i.world_pos.xyz);
         float3 L, lightColor, ambient, pixelAmbient;
-        GetLightAmbient(i.world_pos.xyz, N, L, lightColor, ambient, pixelAmbient);
+        GetLightAmbient(N, L, lightColor, ambient);
+        pixelAmbient = i.pixel_ambient;
         float4 base = tex2D(_MainTex, TRANSFORM_TEX(i.uv, _MainTex));
         base.rgb = base.rgb * lerp(0.6, 1, pow(FURSTEP*2.4,0.2));
+        #ifdef No_Fur_Shadow
         float light_atten = 1;
-
-        float3 shadedColor = shading_frag(base.rgb, lightColor, light_atten, ambient, pixelAmbient, N, V, L);
+        #else
+        UNITY_LIGHT_ATTENUATION(light_atten, i, i.world_pos.xyz);
+        light_atten = lerp(1, light_atten, any(_WorldSpaceLightPos0.xyz));
+        #endif
+        float lumadj = max(0, _Luminance - 1) * 0.15;
+        float3 shadedColor = shading_frag(base.rgb, lightColor, light_atten, (ambient + lumadj) * _Luminance, pixelAmbient, N, V, L);
+        //near occlusion
+        shadedColor *= lerp(_NearOcclusion, 1, saturate(i.pos.w * 6 - 0.2));
         UNITY_APPLY_FOG(i.fogCoord, shadedColor);
-        return float4(saturate(shadedColor * _Luminance), alpha);
+        return float4(saturate(shadedColor), alpha);
     }
 #endif
 
